@@ -1,0 +1,12 @@
+/api/k8s
+    /pods // list pods
+    /deployments //list deployments
+    /nodes   // list nodes
+    /namespaces   // Tạo namespace
+    /deployments/apply   //  Apply Deployment từ YAML vào namespace cụ thể
+    /deployments/{name} // Xóa Deployment
+    /top-nodes /deployments/{name}
+
+
+
+/api/ansible/generate-playbook

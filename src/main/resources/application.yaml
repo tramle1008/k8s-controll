@@ -1,0 +1,24 @@
+# application.yml
+ansible:
+  host: 172.16.7.131
+  user: tram
+  private-key-path: C:/Users/HP/.ssh/id_ed25519
+
+k8s:
+  kubeconfig-path: E:/\.kube/config
+
+kubespray:
+  remote-dir: /home/tram/ansible-kubespray/kubespray
+
+spring:
+  application:
+    name: Rancher
+  datasource:
+    url: jdbc:mysql://localhost:3306/k8s_monitor?useSSL=false&serverTimezone=UTC
+    username: root
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
