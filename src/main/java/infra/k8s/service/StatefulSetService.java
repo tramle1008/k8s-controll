@@ -16,4 +16,6 @@ public interface StatefulSetService {
     List<DeploymentPodsDto> getStatefulSetPods(String namespace, String name);
 
     void delete(String namespace, String name);
+
+    void scale(String namespace, String name, int replicas);
 }

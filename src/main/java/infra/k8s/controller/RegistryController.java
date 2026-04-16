@@ -1,5 +1,6 @@
 package infra.k8s.controller;
 
+import infra.k8s.dto.Registry.RepositoryDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -10,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/images")
+@RequestMapping("/api/registry")
 @RequiredArgsConstructor
 public class RegistryController {
     private final RegistryService registryService;
@@ -39,28 +40,22 @@ public class RegistryController {
         }
     }
 
+    @DeleteMapping("/repo")
+    public ResponseEntity<?> deleteRepo(
+            @RequestParam String repo
+    ) {
+        try {
+            registryService.deleteRepository(repo);
+            return ResponseEntity.ok(Map.of("message", "Xóa repo thành công"));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/tags")
     public ResponseEntity<?> getTags(@RequestParam String repo) {
         return ResponseEntity.ok(registryService.getTags(repo));
-    }
-
-    @DeleteMapping("/image")
-    public ResponseEntity<?> deleteImage(
-            @RequestParam String repo,
-            @RequestParam String tag
-    ) {
-        try {
-            registryService.deleteImage(repo, tag);
-
-            return ResponseEntity.ok(Map.of(
-                    "message", "Xóa image thành công"
-            ));
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage()
-            ));
-        }
     }
 
     @GetMapping("/list/{username}")
@@ -71,6 +66,11 @@ public class RegistryController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+    @GetMapping("/repos")
+    public ResponseEntity<List<RepositoryDTO>> getAllRepositories() throws Exception {
+        List<RepositoryDTO> repos = registryService.listAllRepositories();
+        return ResponseEntity.ok(repos);
     }
 
 }

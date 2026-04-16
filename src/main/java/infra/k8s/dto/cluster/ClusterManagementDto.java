@@ -16,5 +16,6 @@ public class ClusterManagementDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Integer totalNodes;
+    private UserDto userOwner;
     private List<ClusterNodeResponseDto> nodes;
 }

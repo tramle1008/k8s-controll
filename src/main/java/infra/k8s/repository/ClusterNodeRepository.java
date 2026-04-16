@@ -1,6 +1,7 @@
 package infra.k8s.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import infra.k8s.Context.NodeRole;
@@ -23,4 +24,10 @@ public interface ClusterNodeRepository extends JpaRepository<ClusterNode, Long> 
     List<ClusterNode> findNotReadyNodesByClusterId(@Param("clusterId") Long clusterId);
     long countByClusterIdAndRole(Long clusterId, NodeRole role);
     Optional<ClusterNode> findFirstByClusterIdAndRole(Long clusterId, NodeRole role);
+
+    List<ClusterNode> findByClusterId(Long clusterId);
+
+    @Modifying
+    @Query("DELETE FROM ClusterNode n WHERE n.id = :id")
+    void deleteByIdHard(@Param("id") Long id);
 }

@@ -16,4 +16,6 @@ public interface DeploymentService {
     List<DeploymentPodsDto> getDeploymentPods(String namespace, String name);
 
     void scaleDeployment(String namespace, String name, Integer replicas);
+
+    void restartDeployment(String namespace, String deploymentName);
 }

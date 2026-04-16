@@ -1,5 +1,9 @@
 package infra.k8s.controller;
 
+import com.jcraft.jsch.ChannelExec;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.Session;
+import infra.k8s.service.SshCommandExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -20,6 +24,7 @@ import infra.k8s.service.ClusterManager;
 import infra.k8s.service.SshKeyService;
 import infra.k8s.service.iml.ClusterDeployService;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +42,7 @@ public class CreateClusterController {
     private final AnsibleService ansibleService;
     private final ClusterManager clusterManager;
     private final ClusterDeployService clusterDeployService;
+    private final SshCommandExecutor sshCommandExecutor;
 
     @PostMapping("/cluster")
     public ResponseEntity<?> createCluster(@RequestBody ClusterCreationRequest request) {
@@ -63,8 +69,6 @@ public class CreateClusterController {
             // 2. Tạo Cluster object + validate node + gom password từng node
             // =============================
 
-
-
             Cluster cluster = new Cluster();
             cluster.setName(request.getClusterName().trim());
 
@@ -74,11 +78,6 @@ public class CreateClusterController {
             Map<String, String> nodePasswords = new HashMap<>();
 
             for (NodeDto dto : request.getNodes()) {
-
-
-                if (dto.getName() == null || dto.getName().trim().isEmpty()) {
-                    return ResponseEntity.badRequest().body("Node name không được để trống");
-                }
 
                 if (dto.getIp() == null || dto.getIp().trim().isEmpty()) {
                     return ResponseEntity.badRequest().body("Node " + dto.getName() + " chưa có IP");
@@ -110,7 +109,22 @@ public class CreateClusterController {
 
                 ClusterNode node = new ClusterNode();
                 node.setCluster(cluster);
-                node.setName(dto.getName().trim());
+
+
+                String hostname = sshCommandExecutor.run(
+                        dto.getIp(),
+                        dto.getUser(),
+                        ssh.getPassword(),
+                        "hostnamectl --static"
+                );
+
+                if (hostname == null || hostname.isBlank()) {
+                    return ResponseEntity.badRequest()
+                            .body("Không thể lấy hostname từ node IP " + dto.getIp());
+                }
+
+                node.setName(hostname.trim());
+
                 node.setIpAddress(dto.getIp().trim());
                 node.setUsername(
                         dto.getUser() != null && !dto.getUser().trim().isEmpty()

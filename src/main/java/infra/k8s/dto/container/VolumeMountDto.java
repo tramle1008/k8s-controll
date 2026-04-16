@@ -7,4 +7,5 @@ public class VolumeMountDto {
     private String name;
     private String mountPath;
     private Boolean readOnly;
+    private String subPath;
 }

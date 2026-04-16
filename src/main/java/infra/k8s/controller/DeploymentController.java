@@ -1,6 +1,9 @@
 package infra.k8s.controller;
 
+import infra.k8s.dto.deployment.RolloutRestartRequest;
+import infra.k8s.service.iml.Fabric8DeploymentService;
 import io.fabric8.kubernetes.api.model.StatusDetails;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import jakarta.validation.Valid;
@@ -27,7 +30,7 @@ import java.util.List;
 public class DeploymentController {
    private final DeploymentService deploymentService;
     private final ClusterManager clusterManager;
-
+    private final Fabric8DeploymentService deploymentFabric8Service;
 
     @PostMapping
     public ResponseEntity<String> createDeployment(
@@ -108,4 +111,30 @@ public class DeploymentController {
 
         return ResponseEntity.ok().build();
     }
+
+
+    @PostMapping("/apply")
+    public ResponseEntity<String> applyDeployment(@RequestBody Deployment deployment) {
+        if (deployment == null) {
+            return ResponseEntity.badRequest().body("Deployment payload is null");
+        }
+        try {
+            deploymentFabric8Service.applyDeployment(deployment);
+            return ResponseEntity.ok("Deployment applied successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error applying deployment: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/rollout-restart")
+    public String restartDeployment(@RequestBody RolloutRestartRequest request) {
+
+        deploymentService.restartDeployment(
+                request.getNamespace(),
+                request.getDeploymentName()
+        );
+
+        return "Rollout restart triggered!";
+    }
+
 }

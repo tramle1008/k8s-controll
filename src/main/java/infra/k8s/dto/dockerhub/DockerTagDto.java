@@ -9,5 +9,4 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class DockerTagDto {
     private String name;
-    private String lastUpdated;
 }

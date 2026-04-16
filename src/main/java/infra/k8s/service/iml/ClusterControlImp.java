@@ -1,13 +1,16 @@
 package infra.k8s.service.iml;
 
+import infra.k8s.Context.UserRole;
+import infra.k8s.dto.cluster.*;
+import infra.k8s.module.User;
+import infra.k8s.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import infra.k8s.Context.ClusterStatus;
 import infra.k8s.dto.ClusterDto;
-import infra.k8s.dto.cluster.ClusterImportRequest;
-import infra.k8s.dto.cluster.ClusterManagementDto;
-import infra.k8s.dto.cluster.ClusterNodeResponseDto;
 import infra.k8s.module.Cluster;
 import infra.k8s.module.ClusterNode;
 import infra.k8s.repository.ClusterRepository;
@@ -25,6 +28,7 @@ public class ClusterControlImp implements ClusterControlService {
 
     private final ClusterRepository clusterRepository;
     private final CryptoService cryptoService;
+    private final UserRepository userRepository;
 
     @Override
     public List<ClusterDto> getAllClusterActive() {
@@ -128,6 +132,26 @@ public class ClusterControlImp implements ClusterControlService {
         clusterRepository.delete(cluster);
     }
 
+    @Override
+    public void assignClusterToUser(AssignClusterRequest request) {
+        User user = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        if (user.getUserRole() == UserRole.ADMIN) {
+            throw new AccessDeniedException("Cannot assign cluster to Admin user");
+        }
+
+        if (user.getCluster() != null) {
+            throw new IllegalStateException("User already assigned to a cluster");
+        }
+
+        Cluster cluster = clusterRepository.findById(request.getClusterId())
+                .orElseThrow(() -> new EntityNotFoundException("Cluster not found"));
+
+        user.setCluster(cluster);
+        userRepository.save(user);
+    }
+
     private void validateImportRequest(ClusterImportRequest request) {
         if (request == null) {
             throw new RuntimeException("Request không được null");
@@ -166,6 +190,19 @@ public class ClusterControlImp implements ClusterControlService {
                         node.getUsername()
                 ))
                 .toList();
+        // Tìm userRole = USER trong cluster
+        UserDto userOwner = null;
+
+        if (cluster.getUsers() != null) {
+            userOwner = cluster.getUsers().stream()
+                    .filter(u -> u.getUserRole() == UserRole.USER)
+                    .findFirst()
+                    .map(u -> new UserDto(
+                            u.getId(),
+                            u.getUsername()
+                    ))
+                    .orElse(null);
+        }
 
         return new ClusterManagementDto(
                 cluster.getId(),
@@ -173,6 +210,7 @@ public class ClusterControlImp implements ClusterControlService {
                 cluster.getCreatedAt(),
                 cluster.getUpdatedAt(),
                 nodeDtos.size(),
+                userOwner,
                 nodeDtos
         );
     }

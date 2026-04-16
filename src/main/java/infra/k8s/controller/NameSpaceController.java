@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/namespaces")
@@ -46,6 +47,29 @@ public class NameSpaceController {
         return ResponseEntity.ok(namespaces);
     }
 
+    @GetMapping("/project-namespaces")
+    public ResponseEntity<List<String>> listProjectNamespaces() {
+        KubernetesClient client = clusterManager.requireActiveClient();
+
+        // Danh sách namespace system cần loại bỏ
+        Set<String> excluded = Set.of(
+                "kube-system",
+                "kube-public",
+                "kube-node-lease",
+                "longhorn-system",
+                "metallb-system"
+        );
+
+        List<String> namespaces = client.namespaces()
+                .list()
+                .getItems()
+                .stream()
+                .map(ns -> ns.getMetadata().getName())      // lấy name
+                .filter(name -> !excluded.contains(name))   // loại namespace hệ thống
+                .toList();
+
+        return ResponseEntity.ok(namespaces);
+    }
 
     // Tạo namespace
     @PostMapping()

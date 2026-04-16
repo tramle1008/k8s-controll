@@ -13,7 +13,9 @@ public interface ConfigMapService {
 
     void create(ConfigMapCreateRequest dto);
 
-    void createFromFile(String namespace, MultipartFile file) throws IOException;
+    void createFromFile(String namespace, String type, MultipartFile file) throws IOException;
 
     void delete(String namespace, String name);
+
+    List<ConfigMapDto> getByNameSpace(String namespace);
 }

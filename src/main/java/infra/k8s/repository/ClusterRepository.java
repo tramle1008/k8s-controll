@@ -29,4 +29,7 @@ WHERE c.id = :id
     @Modifying
     @Query("UPDATE Cluster c SET c.status = :status WHERE c.id = :id")
     void updateStatus(Long id, ClusterStatus status);
+
+    @Query("SELECT c.name FROM Cluster c WHERE c.id = :id")
+    Optional<String> findNameById(Long id);
 }

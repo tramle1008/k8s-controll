@@ -19,8 +19,6 @@ public class ConfigMapController {
 
     private final ConfigMapService configMapService;
 
-
-
     @GetMapping()
     public ResponseEntity<List<ConfigMapDto>> getConfigMaps(
     ) {
@@ -30,18 +28,24 @@ public class ConfigMapController {
     public ResponseEntity<Void> createConfigMap(
             @RequestBody ConfigMapCreateRequest dto
     ) {
-
         configMapService.create(dto);
-
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/{namespace}")
+    public ResponseEntity<List<ConfigMapDto>> getConfigMapsByNameSpace(  @PathVariable String namespace
+    ) {
+        return ResponseEntity.ok(configMapService.getByNameSpace(namespace));
+    }
+
 
     @PostMapping(value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> createFromFile(
             @RequestParam String namespace,
+            @RequestParam String type,
             @RequestPart MultipartFile file
     ) throws IOException {
-        configMapService.createFromFile(namespace, file);
+        configMapService.createFromFile(namespace, type, file);
         return ResponseEntity.ok().build();
     }
 

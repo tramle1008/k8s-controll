@@ -124,4 +124,13 @@ public class StatefulSetImpl implements StatefulSetService {
             );
         }
     }
+
+    public void scale(String namespace, String name, int replicas) {
+        KubernetesClient client = clusterManager.requireActiveClient();
+
+        client.apps().statefulSets()
+                .inNamespace(namespace)
+                .withName(name)
+                .scale(replicas, true); // true = đợi đến khi tất cả Pod ready
+    }
 }

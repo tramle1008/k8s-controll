@@ -12,7 +12,7 @@ public class TopicNodeSummary {
     private boolean ready;
     private String role;
     private String ipAddress;
-    private Instant lastTransitionTime;
+
     private Instant updatedAt;
     private boolean alerted;
     private Long clusterId;
@@ -23,7 +23,7 @@ public class TopicNodeSummary {
         this.ready = Boolean.TRUE.equals(node.getReady());
         this.role = node.getRole() != null ? node.getRole().name() : null;
         this.ipAddress = node.getIpAddress();
-        this.lastTransitionTime = node.getLastTransitionTime();
+
         this.updatedAt = node.getUpdatedAt();
         this.alerted = Boolean.TRUE.equals(node.getAlerted());
         this.clusterId = node.getCluster() != null ? node.getCluster().getId() : null;

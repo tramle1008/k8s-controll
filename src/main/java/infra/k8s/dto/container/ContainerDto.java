@@ -12,5 +12,6 @@ public class ContainerDto {
     private List<ContainerPortDto> ports;
     private ResourceDto resources;
     private List<EnvVarDto> env;
+    private List<EnvFromDto> envFrom;
     private List<VolumeMountDto> volumeMounts;
 }

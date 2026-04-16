@@ -1,10 +1,14 @@
 package infra.k8s.controller;
 
 
+import infra.k8s.dto.cluster.AssignClusterRequest;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -118,6 +122,20 @@ public class ClusterController {
             @RequestPart("adminConfFile") MultipartFile adminConfFile
     ) {
         return ResponseEntity.ok(clusterControlService.importCluster(request, adminConfFile));
+    }
+
+    @PutMapping("/users")
+    public ResponseEntity<Void> assignCluster(@RequestBody AssignClusterRequest request) {
+        try {
+            clusterControlService.assignClusterToUser(request);
+            return ResponseEntity.ok().build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
     }
 
     @DeleteMapping("/{id}")

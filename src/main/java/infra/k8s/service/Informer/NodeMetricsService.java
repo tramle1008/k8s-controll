@@ -33,43 +33,57 @@ public class NodeMetricsService {
         var nodes = client.nodes().list().getItems();
         var pods = client.pods().inAnyNamespace().list().getItems();
 
-        Map<String, Node> nodeMap = new HashMap<>();
-        for (Node n : nodes) {
-            nodeMap.put(n.getMetadata().getName(), n);
+        // map nodeName -> nodeMetrics
+        Map<String, NodeMetrics> metricsMap = new HashMap<>();
+        for (NodeMetrics m : metrics.getItems()) {
+            metricsMap.put(m.getMetadata().getName(), m);
         }
 
+        // pod count
         Map<String, Integer> podsPerNode = new HashMap<>();
-
         for (var pod : pods) {
             String nodeName = pod.getSpec().getNodeName();
-            if (nodeName == null) continue;
-            podsPerNode.merge(nodeName, 1, Integer::sum);
+            if (nodeName != null) {
+                podsPerNode.merge(nodeName, 1, Integer::sum);
+            }
         }
 
         List<NodeMetricsDto> result = new ArrayList<>();
 
-        for (NodeMetrics m : metrics.getItems()) {
+        for (Node node : nodes) {
+            String nodeName = node.getMetadata().getName();
 
-            String nodeName = m.getMetadata().getName();
-            Node node = nodeMap.get(nodeName);
-
-            if (node == null) continue;
-
-            double cpuPercent = calculateCpuPercent(node, m);
-            double memPercent = calculateMemoryPercent(node, m);
+            NodeMetrics m = metricsMap.get(nodeName); // null nếu drain
 
             int podsCapacity = Integer.parseInt(
                     node.getStatus().getCapacity().get("pods").getAmount()
             );
-
             int podsUsed = podsPerNode.getOrDefault(nodeName, 0);
+
+            //  case node không có metrics (drain, NotReady)
+            if (m == null) {
+                result.add(new NodeMetricsDto(
+                        nodeName,
+                        0,
+                        0,
+                        podsUsed,
+                        podsCapacity,
+                        false // metricsAvailable = false
+                ));
+                continue;
+            }
+
+            // node có metrics đầy đủ
+            double cpuPercent = calculateCpuPercent(node, m);
+            double memPercent = calculateMemoryPercent(node, m);
 
             result.add(new NodeMetricsDto(
                     nodeName,
                     round(cpuPercent),
                     round(memPercent),
                     podsUsed,
-                    podsCapacity
+                    podsCapacity,
+                    true
             ));
         }
 

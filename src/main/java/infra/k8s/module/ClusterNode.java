@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-// Node.java toi doi thanh ClusterNode
 @Entity
 @Table(name = "nodes",
         uniqueConstraints = @UniqueConstraint(name = "uk_cluster_node", columnNames = {"cluster_id", "name"}))
@@ -19,7 +18,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Node {
+public class ClusterNode {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,7 +34,7 @@ public class Node {
     private String username = "ubuntu";  // hoặc user1, user2
     private Integer sshPort = 22;
     private Boolean ready = false;     // Trạng thái realtime từ K8s
-    private Instant lastTransitionTime;
+//    private Instant lastTransitionTime;
     private Instant updatedAt = Instant.now();
     private Boolean alerted = false;
     @OneToMany(mappedBy = "node", cascade = CascadeType.ALL, orphanRemoval = true)

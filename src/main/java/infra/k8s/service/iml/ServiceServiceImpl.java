@@ -17,10 +17,7 @@ import infra.k8s.dto.service.ServiceSpecDto;
 import infra.k8s.service.ClusterManager;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @org.springframework.stereotype.Service
@@ -87,9 +84,9 @@ public class ServiceServiceImpl implements ServiceService {
 
     @Override
     public List<Map<String, Object>> listServices() {
-        KubernetesClient kubernetesClient = clusterManager.requireActiveClient();
+        KubernetesClient client = clusterManager.requireActiveClient();
 
-        ServiceList list = kubernetesClient.services()
+        ServiceList list = client.services()
                 .inAnyNamespace()
                 .list();
 
@@ -99,9 +96,70 @@ public class ServiceServiceImpl implements ServiceService {
 
             m.put("name", s.getMetadata().getName());
             m.put("namespace", s.getMetadata().getNamespace());
-            m.put("type", s.getSpec().getType());
-            m.put("clusterIP", s.getSpec().getClusterIP());
+            String type = s.getSpec().getType();
+
+
+            if ("None".equalsIgnoreCase(s.getSpec().getClusterIP())) {
+                type = "Headless";
+            }
+
+            m.put("type", type);
+            m.put("selector", s.getSpec().getSelector());
             m.put("ports", s.getSpec().getPorts());
+
+            // LẤY LOADBALANCER IP
+            List<String> externalIps = Optional.ofNullable(s.getStatus())
+                    .map(ServiceStatus::getLoadBalancer)
+                    .map(LoadBalancerStatus::getIngress)
+                    .orElse(Collections.emptyList())
+                    .stream()
+                    .map(LoadBalancerIngress::getIp)
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            m.put("externalIp", externalIps);
+
+            // TẠO URL TRUY CẬP
+            String accessUrl = null;
+
+            // LoadBalancer URL
+            if ("LoadBalancer".equals(s.getSpec().getType()) && !externalIps.isEmpty()) {
+                int port = s.getSpec().getPorts().get(0).getPort();
+                accessUrl = "http://" + externalIps.get(0) + ":" + port;
+            }
+
+            // NodePort URL → luôn lấy Master Node
+            if ("NodePort".equals(s.getSpec().getType())) {
+
+                // tìm master
+                List<Node> masterNodes = client.nodes()
+                        .withLabel("node-role.kubernetes.io/master")
+                        .list()
+                        .getItems();
+
+                if (masterNodes.isEmpty()) {
+                    masterNodes = client.nodes()
+                            .withLabel("node-role.kubernetes.io/control-plane")
+                            .list()
+                            .getItems();
+                }
+
+                if (masterNodes.isEmpty()) {
+                    throw new RuntimeException("No master node found");
+                }
+
+                String masterIp = masterNodes.get(0).getStatus().getAddresses().stream()
+                        .filter(a -> "InternalIP".equals(a.getType()))
+                        .map(NodeAddress::getAddress)
+                        .findFirst()
+                        .orElseThrow(() -> new RuntimeException("Master node has no InternalIP"));
+
+                int nodePort = s.getSpec().getPorts().get(0).getNodePort();
+
+                accessUrl = "http://" + masterIp + ":" + nodePort;
+            }
+
+            m.put("accessUrl", accessUrl);
 
             return m;
 

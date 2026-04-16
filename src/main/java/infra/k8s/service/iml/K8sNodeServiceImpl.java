@@ -1,10 +1,14 @@
 package infra.k8s.service.iml;
 
+import infra.k8s.module.ClusterNode;
+import infra.k8s.repository.ClusterNodeRepository;
+import infra.k8s.repository.ClusterRepository;
 import io.fabric8.kubernetes.api.model.*;
 
 import io.fabric8.kubernetes.client.KubernetesClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import infra.k8s.dto.ClusterMetricsDto;
 import infra.k8s.dto.NodeSummary;
@@ -21,7 +25,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import io.fabric8.kubernetes.api.model.policy.v1.Eviction;
+import io.fabric8.kubernetes.api.model.policy.v1.EvictionBuilder;
 
 @Slf4j
 @Service
@@ -30,15 +37,34 @@ public class K8sNodeServiceImpl implements K8sNodeService {
 
 
     private final ClusterManager clusterManager;
+    private final ClusterNodeRepository clusterNodeRepository;
     private final Map<String, NodeMetricsDto> lastMetrics = new ConcurrentHashMap<>();
     @Override
     public List<NodeSummary> getAllNodes() {
         KubernetesClient client = clusterManager.requireActiveClient();
+        List<ClusterNode> clusterNodes = clusterNodeRepository.findAll(); // lấy từ DB
 
+        Map<String, ClusterNode> nodeMap = clusterNodes.stream()
+                .collect(Collectors.toMap(
+                        ClusterNode::getName,
+                        Function.identity(),
+                        (existing, replacement) -> existing.getUpdatedAt().isAfter(replacement.getUpdatedAt()) ? existing : replacement
+                ));
         NodeList nodeList = client.nodes().list();
 
         return nodeList.getItems().stream()
-                .map(this::toNodeSummary)
+                .map(k8sNode -> {
+                    NodeSummary summary = toNodeSummary(k8sNode);
+
+                    ClusterNode clusterNode = nodeMap.get(summary.getName());
+                    if (clusterNode != null) {
+                        summary.setUser(clusterNode.getUsername());
+                        summary.setInternalIp(clusterNode.getIpAddress());
+                        summary.setRole(clusterNode.getRole().name().toLowerCase());
+                    }
+
+                    return summary;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -106,7 +132,110 @@ public class K8sNodeServiceImpl implements K8sNodeService {
         );
     }
 
+    @Override
+    public String drainNode(String nodeName) {
+        KubernetesClient client = clusterManager.requireActiveClient();
 
+        try {
+            // ===== 1) Cordon node =====
+            log.info("Cordoning node: {}", nodeName);
+            client.nodes()
+                    .withName(nodeName)
+                    .edit(n -> new NodeBuilder(n)
+                            .editOrNewSpec()
+                            .withUnschedulable(true)
+                            .endSpec()
+                            .build()
+                    );
+
+            // ===== 2) Lấy tất cả pods trên node =====
+            List<Pod> targetPods = client.pods().inAnyNamespace().list().getItems().stream()
+                    .filter(p -> nodeName.equals(p.getSpec().getNodeName()))
+                    // ignore mirror pods (kubectl drain luôn bỏ qua)
+                    .filter(p -> p.getMetadata().getAnnotations() == null ||
+                            !p.getMetadata().getAnnotations().containsKey("kubernetes.io/config.mirror"))
+                    // ignore DaemonSet pods (do --ignore-daemonsets)
+                    .filter(p -> p.getMetadata().getOwnerReferences() == null ||
+                            p.getMetadata().getOwnerReferences().stream()
+                                    .noneMatch(o -> "DaemonSet".equals(o.getKind())))
+                    .collect(Collectors.toList());
+
+            log.info("Pods to drain: {}", targetPods.size());
+
+            // ===== 3) Evict từng pod =====
+            for (Pod pod : targetPods) {
+                String ns = pod.getMetadata().getNamespace();
+                String name = pod.getMetadata().getName();
+
+                log.info("Evicting pod: {}/{}", ns, name);
+
+                Eviction eviction = new EvictionBuilder()
+                        .withNewMetadata()
+                        .withName(name)
+                        .withNamespace(ns)
+                        .endMetadata()
+                        .build();
+
+                try {
+                    client.pods()
+                            .inNamespace(ns)
+                            .withName(name)
+                            .evict(eviction);
+
+                } catch (Exception ex) {
+                    // ==== Nếu gặp PDB (PodDisruptionBudget) → kubectl cũng retry ====
+                    log.warn("Evict failed (retrying): {}/{}: {}", ns, name, ex.getMessage());
+
+                    // fallback: delete pod theo kiểu --delete-emptydir-data
+                    client.pods().inNamespace(ns).withName(name).delete();
+                }
+
+                // đợi pod biến mất giống kubectl
+                waitForPodDeletion(client, ns, name);
+            }
+
+            return "Node drained thành công tại : " + nodeName;
+
+        } catch (Exception e) {
+            log.error("Drain node failed: {}", nodeName, e);
+            throw new RuntimeException("Drain failed: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String uncordonNode(String nodeName) {
+        KubernetesClient client = clusterManager.requireActiveClient();
+
+        try {
+            log.info("Uncordoning node: {}", nodeName);
+
+            client.nodes()
+                    .withName(nodeName)
+                    .edit(n -> new NodeBuilder(n)
+                            .editOrNewSpec()
+                            .withUnschedulable(false)
+                            .endSpec()
+                            .build()
+                    );
+
+            return "Node uncordoned: " + nodeName;
+
+        } catch (Exception e) {
+            log.error("Failed to uncordon node {}", nodeName, e);
+            throw new RuntimeException("Uncordon failed: " + e.getMessage());
+        }
+    }
+
+    private void waitForPodDeletion(KubernetesClient client, String ns, String name) throws InterruptedException {
+        int retry = 0;
+        while (retry < 30) { // ~30s giống kubectl
+            Pod p = client.pods().inNamespace(ns).withName(name).get();
+            if (p == null) return;
+            Thread.sleep(1000);
+            retry++;
+        }
+        log.warn("Timeout waiting for pod {} in namespace {} to be deleted", name, ns);
+    }
     private long parseCpu(String cpu) {
 
         if (cpu.endsWith("n")) {
@@ -250,42 +379,5 @@ public class K8sNodeServiceImpl implements K8sNodeService {
                 .collect(Collectors.joining(", "));
     }
 
-    public Collection<NodeMetricsDto> getLastMetrics() {
 
-        KubernetesClient client = clusterManager.getActiveClient();
-
-        if (client == null) {
-            return lastMetrics.values();
-        }
-
-        var nodes = client.nodes().list().getItems();
-
-        List<NodeMetricsDto> result = new ArrayList<>();
-
-        for (Node node : nodes) {
-
-            String nodeName = node.getMetadata().getName();
-
-            NodeMetricsDto m = lastMetrics.get(nodeName);
-
-            if (m != null) {
-                result.add(m);
-            } else {
-
-                // fallback nếu chưa có metrics
-                result.add(new NodeMetricsDto(
-                        nodeName,
-                        0,
-                        0,
-                        0,
-                        Integer.parseInt(
-                                node.getStatus().getCapacity().get("pods").getAmount()
-                        )
-                ));
-
-            }
-        }
-
-        return result;
-    }
 }

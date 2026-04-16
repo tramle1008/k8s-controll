@@ -137,7 +137,7 @@ public class NodeInformerService {
 
         if (statusChanged) {
 
-            node.setLastTransitionTime(now);
+            node.setUpdatedAt(now);
 
             if (ready) {
                 node.setAlerted(false);
@@ -219,7 +219,6 @@ public class NodeInformerService {
         node.setCluster(cluster);
         node.setName(name);
         node.setReady(ready);
-        node.setLastTransitionTime(now);
         node.setUpdatedAt(now);
 
         log.info("### Created new ClusterNode {}", name);

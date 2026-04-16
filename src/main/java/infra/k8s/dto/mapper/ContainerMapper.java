@@ -1,15 +1,13 @@
 package infra.k8s.dto.mapper;
 
+import infra.k8s.dto.container.*;
 import io.fabric8.kubernetes.api.model.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import infra.k8s.dto.container.ContainerDto;
-import infra.k8s.dto.container.ContainerPortDto;
-import infra.k8s.dto.container.EnvVarDto;
-import infra.k8s.dto.container.VolumeMountDto;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Component
@@ -32,6 +30,7 @@ public class ContainerMapper {
                 .withPorts(Optional.ofNullable(mapPorts(dto.getPorts()))
                         .orElse(Collections.emptyList()))
                 .withEnv(mapEnv(dto.getEnv()))
+                .withEnvFrom(mapEnvFrom(dto.getEnvFrom()))
                 .withVolumeMounts(mapVolumeMounts(dto.getVolumeMounts())) //toi moi them
                 .withResources(resourceMapper.toResource(dto.getResources()))
                 .build();
@@ -52,7 +51,7 @@ public class ContainerMapper {
                         .build())
                 .toList();
     }
-//them
+
     private List<VolumeMount> mapVolumeMounts(List<VolumeMountDto> mounts) {
 
         if (mounts == null || mounts.isEmpty()) {
@@ -64,6 +63,7 @@ public class ContainerMapper {
                         .withName(m.getName())
                         .withMountPath(m.getMountPath())
                         .withReadOnly(m.getReadOnly() != null ? m.getReadOnly() : false)
+                        .withSubPath(m.getSubPath())
                         .build())
                 .toList();
     }
@@ -81,4 +81,45 @@ public class ContainerMapper {
                         .build())
                 .toList();
     }
+
+    private List<EnvFromSource> mapEnvFrom(List<EnvFromDto> envFromList) {
+
+        if (envFromList == null || envFromList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return envFromList.stream()
+                .map(e -> {
+
+                    if (e == null || e.getType() == null || e.getName() == null) {
+                        return null; //  chặn rỗng
+                    }
+
+                    if ("configMap".equals(e.getType())) {
+                        return new EnvFromSourceBuilder()
+                                .withConfigMapRef(
+                                        new ConfigMapEnvSourceBuilder()
+                                                .withName(e.getName())
+                                                .build()
+                                )
+                                .build();
+                    }
+
+                    if ("secret".equals(e.getType())) {
+                        return new EnvFromSourceBuilder()
+                                .withSecretRef(
+                                        new SecretEnvSourceBuilder()
+                                                .withName(e.getName())
+                                                .build()
+                                )
+                                .build();
+                    }
+
+                    return null; //  type không hợp lệ
+                })
+                .filter(Objects::nonNull) //  cực quan trọng
+                .toList();
+    }
+
+
 }

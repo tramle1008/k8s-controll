@@ -14,6 +14,7 @@ public class NodeSummary {
     private String role;                // control-plane, worker, ...
     private String age;                 // 5d, 23h, ...
     private String version;
+    private String user; //mới thêm vào -> trả về username vidu user1, user2, luanvan
     private String internalIp;
     private String cpuCapacity;
     private String cpuAllocatable;

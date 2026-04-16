@@ -1,4 +1,4 @@
-package infra.k8s.dto.ssh;
+package infra.k8s.util;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

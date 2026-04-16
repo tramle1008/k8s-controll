@@ -6,7 +6,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import rancher.k8s.dto.dockerhub.*;
 import infra.k8s.service.DockerHubService;
 
 import java.net.URI;
@@ -74,8 +73,7 @@ public class DockerHubServiceIml implements DockerHubService {
 
             for (DockerHubTagItem item : body.getResults()) {
                 tags.add(new DockerTagDto(
-                        item.getName(),
-                        item.getLast_updated()
+                        item.getName()
                 ));
             }
 

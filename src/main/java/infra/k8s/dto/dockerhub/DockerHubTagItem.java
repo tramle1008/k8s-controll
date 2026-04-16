@@ -5,5 +5,4 @@ import lombok.Data;
 @Data
 public class DockerHubTagItem {
     private String name;
-    private String last_updated;
 }

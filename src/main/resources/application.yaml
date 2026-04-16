@@ -1,18 +1,7 @@
-# application.yml
-ansible:
-  host: 172.16.7.131
-  user: tram
-  private-key-path: C:/Users/HP/.ssh/id_ed25519
-
-k8s:
-  kubeconfig-path: E:/\.kube/config
-
-kubespray:
-  remote-dir: /home/tram/ansible-kubespray/kubespray
-
 spring:
   application:
     name: Rancher
+
   datasource:
     url: jdbc:mysql://localhost:3306/k8s_monitor?useSSL=false&serverTimezone=UTC
     username: root
@@ -22,3 +11,36 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+server:
+  tomcat:
+    max-swallow-size: -1
+
+ansible:
+  control:
+    host: 192.168.235.150
+    user: luanvan
+    private-key-path: "C:/Users/HP/.ssh/id_ed25519"
+
+registry:
+  url: http://192.168.235.150:5000
+  host: 192.168.235.150:5000
+
+kubespray:
+  remote-dir: /home/luanvan/k8s-ansible
+
+ssh:
+  encryption:
+    secret: qawsedxczweda53@3#rfcdstghvoiuyt
+  host: 192.168.235.150
+  user: luanvan
+  privateKeyPath: C:/Users/HP/.ssh/id_ed25519
+
+jwt:
+  secret: yourVeryLongAndSecureSecretKeyAtLeast32Characters1234567890
+  expiration-ms: 900000

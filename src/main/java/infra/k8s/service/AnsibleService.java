@@ -1,6 +1,7 @@
 package infra.k8s.service;
 
 import com.jcraft.jsch.*;
+import infra.k8s.repository.NodeEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
@@ -30,6 +31,7 @@ public class AnsibleService {
     private final ClusterRepository clusterRepository;
     private final ClusterNodeRepository clusterNodeRepository; // nếu bạn có repo riêng cho node
     private final CryptoService cryptoService;
+    private final NodeEventRepository nodeEventRepository;
     @Value("${ansible.control.host:192.168.235.150}")
     private String ansibleHost;
 
@@ -169,7 +171,7 @@ public class AnsibleService {
             BufferedReader reader = new BufferedReader(new InputStreamReader(input));
             String line;
             while ((line = reader.readLine()) != null) {
-                String logLine = "[Ansible " + playbookName + "] " + line;
+                String logLine = "[" + playbookName + "] " + line;
 
                 log.info(logLine);
 
@@ -404,7 +406,7 @@ public class AnsibleService {
 
         try {
 
-            // 1️⃣ Drain node
+            // Drain node
             String drainCmd = String.format(
                     "kubectl drain %s --ignore-daemonsets --delete-emptydir-data --force --timeout=120s",
                     nodeName
@@ -417,7 +419,7 @@ public class AnsibleService {
             drained = true;
 
 
-            // 2️⃣ Delete node
+            //  Delete node
             String deleteCmd = "kubectl delete node " + nodeName;
 
             if (!runCommandOnNode(master, deleteCmd)) {
@@ -427,20 +429,21 @@ public class AnsibleService {
             deleted = true;
 
 
-            // 3️⃣ Reset worker
+            //  Reset worker
             if (!runCommandOnNode(worker, "sudo kubeadm reset -f")) {
                 throw new RuntimeException("Reset worker thất bại");
             }
 
 
-            // 4️⃣ cleanup CNI
+            // cleanup CNI
             runCommandOnNode(worker, "sudo rm -rf /etc/cni/net.d");
             runCommandOnNode(worker, "sudo ip link delete cni0 || true");
             runCommandOnNode(worker, "sudo ip link delete flannel.1 || true");
 
 
-            // 5️⃣ xóa DB
-            clusterNodeRepository.delete(worker);
+            //  xóa DB
+            nodeEventRepository.deleteByNodeId(worker.getId());
+            clusterNodeRepository.deleteByIdHard(worker.getId());
 
 
             log.info("Worker {} đã bị xóa khỏi DB", nodeName);

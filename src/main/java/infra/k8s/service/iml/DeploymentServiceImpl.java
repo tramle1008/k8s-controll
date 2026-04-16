@@ -16,6 +16,8 @@ import infra.k8s.service.ClusterManager;
 import infra.k8s.service.DeploymentService;
 
 import java.io.InputStream;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -183,4 +185,39 @@ public class DeploymentServiceImpl implements DeploymentService {
         );
     }
 
+    public void restartDeployment(String namespace, String deploymentName) {
+        KubernetesClient client = clusterManager.requireActiveClient();
+        client.apps()
+                .deployments()
+                .inNamespace(namespace)
+                .withName(deploymentName)
+                .edit(deployment -> {
+
+                    if (deployment == null) {
+                        throw new RuntimeException("Deployment not found");
+                    }
+
+                    Map<String, String> annotations =
+                            deployment.getSpec()
+                                    .getTemplate()
+                                    .getMetadata()
+                                    .getAnnotations();
+
+                    if (annotations == null) {
+                        annotations = new HashMap<>();
+                    }
+
+                    annotations.put(
+                            "kubectl.kubernetes.io/restartedAt",
+                            Instant.now().toString()
+                    );
+
+                    deployment.getSpec()
+                            .getTemplate()
+                            .getMetadata()
+                            .setAnnotations(annotations);
+
+                    return deployment;
+                });
+    }
 }

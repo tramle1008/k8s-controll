@@ -17,9 +17,11 @@ import infra.k8s.service.ConfigMapService;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -78,6 +80,34 @@ public class ConfigMapServiceImpl implements ConfigMapService {
         }
     }
     @Override
+    public List<ConfigMapDto> getByNameSpace(String namespace) {
+
+        KubernetesClient client = clusterManager.requireActiveClient();
+
+        return client.configMaps()
+                .inNamespace(namespace)
+                .list()
+                .getItems()
+                .stream()
+                .map(cm -> {
+
+                    int dataCount = cm.getData() == null ? 0 : cm.getData().size();
+
+                    String age = AgeUtils.formatAge(
+                            cm.getMetadata().getCreationTimestamp()
+                    );
+
+                    return new ConfigMapDto(
+                            cm.getMetadata().getName(),
+                            cm.getMetadata().getNamespace(),
+                            dataCount,
+                            age
+                    );
+                })
+                .toList();
+    }
+
+    @Override
     public void create(ConfigMapCreateRequest dto) {
 
         KubernetesClient client = clusterManager.requireActiveClient();
@@ -99,33 +129,67 @@ public class ConfigMapServiceImpl implements ConfigMapService {
 
 
     @Override
-    public void createFromFile(String namespace, MultipartFile file) throws IOException {
+    public void createFromFile(String namespace, String type, MultipartFile file) throws IOException {
 
         KubernetesClient client = clusterManager.requireActiveClient();
 
         String fileName = file.getOriginalFilename();
-
         if (fileName == null) {
             throw new RuntimeException("File name invalid");
         }
 
         String content = new String(file.getBytes());
 
-        Map<String, String> data = new HashMap<>();
-        data.put(fileName, content);
-
-        ConfigMap configMap = new ConfigMapBuilder()
+        ConfigMapBuilder builder = new ConfigMapBuilder()
                 .withNewMetadata()
                 .withName(fileName.replace(".", "-"))
                 .withNamespace(namespace)
-                .endMetadata()
-                .withData(data)
-                .build();
+                .endMetadata();
+
+        // =========================
+        // TYPE 1: ENV FILE
+        // =========================
+        if ("env".equalsIgnoreCase(type)) {
+
+            Map<String, String> data = parseEnv(content);
+
+            builder.withData(data);
+        }
+
+        // =========================
+        // TYPE 2: YAML / FILE (kong.yml, config.yaml)
+        // =========================
+        else if ("file".equalsIgnoreCase(type) || "yaml".equalsIgnoreCase(type)) {
+
+            Map<String, String> data = new HashMap<>();
+            data.put(fileName, content);
+
+            builder.withData(data);
+        }
+
+        else {
+            throw new RuntimeException("Unsupported type: " + type);
+        }
+
+        ConfigMap configMap = builder.build();
 
         client.configMaps()
                 .inNamespace(namespace)
                 .resource(configMap)
                 .create();
+    }
+    private Map<String, String> parseEnv(String content) {
+
+        return Arrays.stream(content.split("\\R"))
+                .map(String::trim)
+                .filter(line -> !line.isEmpty())
+                .filter(line -> !line.startsWith("#"))
+                .filter(line -> line.contains("="))
+                .map(line -> line.split("=", 2))
+                .collect(Collectors.toMap(
+                        arr -> arr[0].trim(),
+                        arr -> arr[1].trim().replaceAll("^\"|\"$", "")
+                ));
     }
 
     @Override
@@ -145,4 +209,6 @@ public class ConfigMapServiceImpl implements ConfigMapService {
             );
         }
     }
+
+
 }

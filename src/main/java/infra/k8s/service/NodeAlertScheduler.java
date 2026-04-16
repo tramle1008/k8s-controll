@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import infra.k8s.dto.TopicNodeSummary;
 import infra.k8s.module.ClusterNode;
 import infra.k8s.repository.ClusterNodeRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +26,7 @@ public class NodeAlertScheduler {
     private final ClusterNodeRepository clusterNodeRepository;
     private final SimpMessagingTemplate messagingTemplate;  // Inject để push WebSocket
 
+    @Transactional
     @Scheduled(fixedRate = 10000) // 10 giây/lần
     public void checkAlerts() {
         List<ClusterNode> downNodes = clusterNodeRepository.findNotReadyNodes();
@@ -37,7 +39,7 @@ public class NodeAlertScheduler {
         Instant now = Instant.now();
 
         for (ClusterNode node : downNodes) {
-            Instant transitionTime = node.getLastTransitionTime();
+            Instant transitionTime = node.getUpdatedAt();
             if (transitionTime == null) {
               //  log.warn("Node {} has no lastTransitionTime, skipping.", node.getName());
                 continue;

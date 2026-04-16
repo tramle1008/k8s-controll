@@ -34,7 +34,7 @@ public class Cluster {
     @OneToMany(mappedBy = "cluster", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClusterNode> clusterNodes = new ArrayList<>();
 
-    @OneToMany(mappedBy = "cluster")
+    @OneToMany(mappedBy = "cluster", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<User> users = new ArrayList<>();
 
     @Column(columnDefinition = "TEXT")
